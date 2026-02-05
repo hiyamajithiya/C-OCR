@@ -1,0 +1,440 @@
+{
+  "info": {
+    "name": "C-OCR API",
+    "_postman_id": "c-ocr-api-collection",
+    "description": "Complete API collection for C-OCR platform - OCR and Template-based Data Extraction",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "api_key",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "document_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "template_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('access_token', jsonData.access_token);",
+                  "    pm.environment.set('access_token', jsonData.access_token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "username",
+                  "value": "admin@c-ocr.local",
+                  "type": "text"
+                },
+                {
+                  "key": "password",
+                  "value": "admin123",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "login"]
+            },
+            "description": "Login with email and password to get JWT access token"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Documents",
+      "item": [
+        {
+          "name": "Upload Document",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('document_id', jsonData.document_id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "doc_category",
+                  "value": "invoice",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/documents/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "documents", ""]
+            },
+            "description": "Upload a document for OCR processing"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Document Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/documents/{{document_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "documents", "{{document_id}}"]
+            },
+            "description": "Get document metadata and processing status"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Extraction Result",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/documents/{{document_id}}/result",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "documents", "{{document_id}}", "result"]
+            },
+            "description": "Get OCR and extraction results for a document"
+          },
+          "response": []
+        },
+        {
+          "name": "Download Searchable PDF",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/documents/{{document_id}}/download?kind=searchable_pdf",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "documents", "{{document_id}}", "download"],
+              "query": [
+                {
+                  "key": "kind",
+                  "value": "searchable_pdf"
+                }
+              ]
+            },
+            "description": "Download processed searchable PDF"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Templates",
+      "item": [
+        {
+          "name": "Create Template",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('template_id', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Invoice Template v1\",\n  \"description\": \"Standard invoice format\",\n  \"doc_category\": \"invoice\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/templates/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "templates", ""]
+            },
+            "description": "Create a new template"
+          },
+          "response": []
+        },
+        {
+          "name": "List Templates",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/templates/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "templates", ""]
+            },
+            "description": "List all templates for current tenant"
+          },
+          "response": []
+        },
+        {
+          "name": "Create Template Version",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"signature_json\": {\n    \"header_phrases\": [\"invoice\", \"bill to\"],\n    \"table_headers\": [[\"item\", \"quantity\", \"price\"]],\n    \"layout_hash\": \"abc123\",\n    \"page_count\": 1\n  },\n  \"fields_json\": {\n    \"invoice_number\": {\n      \"type\": \"label_relative\",\n      \"label_text\": \"Invoice No\",\n      \"direction\": \"right\"\n    },\n    \"total_amount\": {\n      \"type\": \"label_relative\",\n      \"label_text\": \"Total\",\n      \"direction\": \"right\"\n    }\n  },\n  \"rules_json\": {\n    \"invoice_number\": {\"pattern\": \"^[A-Z0-9\\\\-/]+$\"},\n    \"total_amount\": {\"pattern\": \"^\\\\d+(\\\\.\\\\d{1,2})?$\"}\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/templates/{{template_id}}/versions",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "templates", "{{template_id}}", "versions"]
+            },
+            "description": "Create a new version of a template with field configuration"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "API Keys",
+      "item": [
+        {
+          "name": "Create API Key",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('api_key', jsonData.raw_key);",
+                  "    console.log('API Key:', jsonData.raw_key);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test API Key\",\n  \"scopes\": [\"documents:read\", \"documents:write\"],\n  \"rate_limit\": 100,\n  \"daily_quota\": 5000\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/api-keys/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "api-keys", ""]
+            },
+            "description": "Create a new API key (Admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "List API Keys",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/api-keys/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "api-keys", ""]
+            },
+            "description": "List all API keys (Admin only)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"New User\",\n  \"email\": \"newuser@c-ocr.local\",\n  \"password\": \"password123\",\n  \"role\": \"operator\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", ""]
+            },
+            "description": "Create a new user (Admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", ""]
+            },
+            "description": "List all users (Admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/me",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "me"]
+            },
+            "description": "Get current user information"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Audit Logs",
+      "item": [
+        {
+          "name": "List Audit Logs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/audit-logs/?limit=50&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "audit-logs", ""],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                },
+                {
+                  "key": "action",
+                  "value": "document_upload",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List audit logs with pagination (Admin only)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Health Check",
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": ["{{base_url}}"],
+          "path": ["health"]
+        },
+        "description": "Health check endpoint"
+      },
+      "response": []
+    }
+  ]
+}

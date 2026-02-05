@@ -1,0 +1,149 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: c-ocr-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: c_ocr
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - c-ocr-network
+
+  # Redis Cache and Message Broker
+  redis:
+    image: redis:7-alpine
+    container_name: c-ocr-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - c-ocr-network
+
+  # FastAPI Backend API
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: c-ocr-api
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/c_ocr
+      - ASYNC_DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/c_ocr
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - STORAGE_PATH=/app/storage
+      - JWT_SECRET=change-this-in-production-secret-key-12345
+      - API_KEY_HASH_SALT=change-this-salt-in-production-67890
+      - OCR_ENGINE_PRIMARY=paddle
+      - OCR_ENGINE_FALLBACK=tesseract
+      - OCR_LANGS=en
+      - DEFAULT_DPI=300
+      - TEMPLATE_MATCH_THRESHOLD=0.75
+      - ENVIRONMENT=production
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - CORS_ORIGINS=["http://localhost:3000", "http://localhost:8000"]
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - storage_data:/app/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - c-ocr-network
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Celery Worker for Async Processing
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: c-ocr-worker
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/c_ocr
+      - ASYNC_DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/c_ocr
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - STORAGE_PATH=/app/storage
+      - JWT_SECRET=change-this-in-production-secret-key-12345
+      - API_KEY_HASH_SALT=change-this-salt-in-production-67890
+      - OCR_ENGINE_PRIMARY=paddle
+      - OCR_LANGS=en
+      - DEFAULT_DPI=300
+    volumes:
+      - ./backend:/app
+      - storage_data:/app/storage
+    depends_on:
+      - postgres
+      - redis
+      - api
+    networks:
+      - c-ocr-network
+    command: celery -A app.workers.celery_app worker --loglevel=info
+
+  # React Frontend (Optional - can be added later)
+  # frontend:
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: Dockerfile
+  #   container_name: c-ocr-frontend
+  #   ports:
+  #     - "3000:3000"
+  #   volumes:
+  #     - ./frontend:/app
+  #     - /app/node_modules
+  #   depends_on:
+  #     - api
+  #   networks:
+  #     - c-ocr-network
+  #   command: npm start
+
+  # Nginx Reverse Proxy (Optional)
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: c-ocr-nginx
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+  #   depends_on:
+  #     - api
+  #     - frontend
+  #   networks:
+  #     - c-ocr-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  storage_data:
+    driver: local
+
+networks:
+  c-ocr-network:
+    driver: bridge
