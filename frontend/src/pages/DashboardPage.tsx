@@ -19,7 +19,6 @@ import {
   Chip,
   IconButton,
   Tooltip,
-  LinearProgress,
   alpha,
   Skeleton,
 } from '@mui/material';
@@ -29,7 +28,6 @@ import {
   CloudUpload,
   CheckCircle,
   Speed,
-  TrendingUp,
   ArrowForward,
   Visibility,
   AccessTime,

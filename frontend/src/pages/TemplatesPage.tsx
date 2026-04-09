@@ -20,7 +20,6 @@ import {
   Alert,
   InputAdornment,
   IconButton,
-  Tooltip,
   alpha,
   Skeleton,
   MenuItem,
@@ -34,8 +33,6 @@ import {
   Category,
   CalendarToday,
   Close,
-  ContentCopy,
-  Delete,
 } from '@mui/icons-material';
 import { apiService } from '@/services/api';
 import { colors } from '@/theme/theme';

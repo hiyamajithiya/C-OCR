@@ -87,7 +87,7 @@ const AuditLogsPage: React.FC = () => {
   };
 
   const getActionConfig = (action: string) => {
-    const configs: Record<string, { color: string; icon: React.ReactNode }> = {
+    const configs: Record<string, { color: string; icon: React.ReactElement }> = {
       user_login: { color: colors.success.main, icon: <Login sx={{ fontSize: 16 }} /> },
       document_upload: { color: colors.primary.main, icon: <Add sx={{ fontSize: 16 }} /> },
       document_download: { color: colors.secondary.main, icon: <Description sx={{ fontSize: 16 }} /> },

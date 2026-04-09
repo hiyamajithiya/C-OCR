@@ -2,7 +2,7 @@
  * Template Builder page for visually marking fields on documents.
  */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Button,
@@ -11,8 +11,6 @@ import {
   TextField,
   MenuItem,
   Grid,
-  Card,
-  CardContent,
   IconButton,
   List,
   ListItem,
@@ -34,7 +32,6 @@ import {
   ZoomOut,
   Delete,
   Save,
-  Add,
   Edit,
   Fullscreen,
   FullscreenExit,

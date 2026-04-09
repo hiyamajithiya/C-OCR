@@ -38,7 +38,6 @@ import {
   PlayArrow,
   Visibility,
   Search,
-  FilterList,
   Refresh,
   InsertDriveFile,
   PictureAsPdf,
@@ -86,7 +85,7 @@ interface OCRResult {
 const DocumentsPage: React.FC = () => {
   const navigate = useNavigate();
   const [uploading, setUploading] = useState(false);
-  const [uploadedDocs, setUploadedDocs] = useState<UploadedDocument[]>([]);
+  const [, setUploadedDocs] = useState<UploadedDocument[]>([]);
   const [allDocuments, setAllDocuments] = useState<any[]>([]);
   const [loadingDocs, setLoadingDocs] = useState(true);
   const [error, setError] = useState('');
