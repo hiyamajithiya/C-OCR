@@ -38,6 +38,8 @@ import {
   DocumentScanner,
   Settings,
   ExpandMore,
+  Business,
+  BarChart,
 } from '@mui/icons-material';
 import { useAuth } from '@/contexts/AuthContext';
 import { colors } from '@/theme/theme';
@@ -57,6 +59,8 @@ const navItems: NavItem[] = [
   { text: 'Dashboard', icon: <Dashboard />, path: '/' },
   { text: 'Documents', icon: <Description />, path: '/documents' },
   { text: 'Templates', icon: <ViewModule />, path: '/templates' },
+  { text: 'Entities', icon: <Business />, path: '/entities', roles: ['admin'] },
+  { text: 'Analytics', icon: <BarChart />, path: '/analytics', roles: ['admin'] },
   { text: 'API Keys', icon: <Key />, path: '/api-keys', roles: ['admin'] },
   { text: 'Users', icon: <People />, path: '/users', roles: ['admin'] },
   { text: 'Audit Logs', icon: <History />, path: '/audit-logs', roles: ['admin'] },

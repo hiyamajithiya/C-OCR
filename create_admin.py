@@ -2,84 +2,50 @@
 Quick script to create admin user in the database.
 """
 import sys
-sys.path.insert(0, 'backend')
+import os
 
-from app.core.database import SessionLocal
-from app.core.security import get_password_hash
-from app.models.tenant import Tenant
-from app.models.user import User, UserRole
+sys.path.insert(0, "backend")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "cocr.settings")
+
+import django
+django.setup()
+
+from accounts.models import Tenant, User
+from core.security import get_password_hash
 from datetime import datetime
 
-db = SessionLocal()
-
 try:
-    # Check if tenant exists
-    tenant = db.query(Tenant).first()
-    if not tenant:
-        print("Creating default tenant...")
-        tenant = Tenant(
-            name="Default Tenant",
-            status="active",
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
-        )
-        db.add(tenant)
-        db.commit()
-        db.refresh(tenant)
-        print(f"✓ Tenant created: {tenant.name} (ID: {tenant.id})")
+    tenant, created = Tenant.objects.get_or_create(
+        name="Default Tenant", defaults={"status": "active"}
+    )
+    if created:
+        print(f"Tenant created: {tenant.name} (ID: {tenant.id})")
     else:
         print(f"Using existing tenant: {tenant.name} (ID: {tenant.id})")
 
-    # Check if admin user exists
-    admin = db.query(User).filter(User.email == "admin@c-ocr.local").first()
-    if admin:
-        print("Admin user already exists!")
-    else:
-        print("Creating admin user...")
-        admin = User(
-            tenant_id=tenant.id,
-            name="Admin User",
-            email="admin@c-ocr.local",
-            password_hash=get_password_hash("admin123"),
-            role=UserRole.ADMIN,
-            is_active=True,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
-        )
-        db.add(admin)
-        db.commit()
-        db.refresh(admin)
-        print(f"✓ Admin user created!")
-        print(f"  Email: {admin.email}")
-        print(f"  Password: admin123")
-        print(f"  Role: {admin.role.value}")
+    users = [
+        ("Admin User", "admin@c-ocr.local", "admin123", "admin"),
+        ("Operator User", "operator@c-ocr.local", "operator123", "operator"),
+        ("Reviewer User", "reviewer@c-ocr.local", "reviewer123", "reviewer"),
+    ]
 
-    # Create operator user
-    operator = db.query(User).filter(User.email == "operator@c-ocr.local").first()
-    if not operator:
-        print("\nCreating operator user...")
-        operator = User(
-            tenant_id=tenant.id,
-            name="Operator User",
-            email="operator@c-ocr.local",
-            password_hash=get_password_hash("operator123"),
-            role=UserRole.OPERATOR,
-            is_active=True,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
+    for name, email, pwd, role in users:
+        user, created = User.objects.get_or_create(
+            email=email,
+            defaults={
+                "tenant": tenant,
+                "name": name,
+                "password_hash": get_password_hash(pwd),
+                "role": role,
+                "is_active": True,
+            },
         )
-        db.add(operator)
-        db.commit()
-        print(f"✓ Operator user created!")
-        print(f"  Email: {operator.email}")
-        print(f"  Password: operator123")
+        if created:
+            print(f"  Created {role}: {email} / {pwd}")
+        else:
+            print(f"  {role} already exists: {email}")
 
-    print("\n" + "="*60)
-    print("Database setup complete!")
-    print("="*60)
+    print("\nDatabase setup complete!")
 
 except Exception as e:
     print(f"Error: {e}")
-    db.rollback()
-finally:
-    db.close()

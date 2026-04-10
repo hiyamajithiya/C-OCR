@@ -18,7 +18,13 @@ import ExtractionResultsPage from '@/pages/ExtractionResultsPage';
 import APIKeysPage from '@/pages/APIKeysPage';
 import UsersPage from '@/pages/UsersPage';
 import AuditLogsPage from '@/pages/AuditLogsPage';
+import EntitiesPage from '@/pages/EntitiesPage';
+import AnalyticsPage from '@/pages/AnalyticsPage';
+import PortalLoginPage from '@/pages/PortalLoginPage';
+import PortalDashboardPage from '@/pages/PortalDashboardPage';
 import Layout from '@/components/Layout';
+import PortalLayout from '@/components/PortalLayout';
+import { PortalAuthProvider, usePortalAuth } from '@/contexts/PortalAuthContext';
 
 // Loading screen component
 const LoadingScreen: React.FC = () => (
@@ -54,6 +60,21 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; roles?: string[] }> 
 
   if (roles && !hasRole(roles)) {
     return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+};
+
+// Portal Protected Route
+const PortalProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isAuthenticated, isLoading } = usePortalAuth();
+
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/portal/login" replace />;
   }
 
   return <>{children}</>;
@@ -108,6 +129,38 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="entities"
+          element={
+            <ProtectedRoute roles={['admin']}>
+              <EntitiesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="analytics"
+          element={
+            <ProtectedRoute roles={['admin']}>
+              <AnalyticsPage />
+            </ProtectedRoute>
+          }
+        />
+      </Route>
+
+      {/* Portal Routes */}
+      <Route
+        path="/portal/login"
+        element={<PortalLoginPage />}
+      />
+      <Route
+        path="/portal"
+        element={
+          <PortalProtectedRoute>
+            <PortalLayout />
+          </PortalProtectedRoute>
+        }
+      >
+        <Route path="dashboard" element={<PortalDashboardPage />} />
       </Route>
 
       {/* Catch all */}
@@ -121,9 +174,11 @@ function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <AuthProvider>
-        <Router>
-          <AppRoutes />
-        </Router>
+        <PortalAuthProvider>
+          <Router>
+            <AppRoutes />
+          </Router>
+        </PortalAuthProvider>
       </AuthProvider>
     </ThemeProvider>
   );

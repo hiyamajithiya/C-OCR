@@ -304,6 +304,144 @@ class ApiService {
     const response = await this.api.get('/api/v1/audit-logs/', { params });
     return response.data;
   }
+
+  // ── Entities (Admin) ──────────────────────────────────────────────
+
+  async createEntity(data: any) {
+    const response = await this.api.post('/api/v1/entities/', data);
+    return response.data;
+  }
+
+  async listEntities() {
+    const response = await this.api.get('/api/v1/entities/');
+    return response.data;
+  }
+
+  async getEntity(entityId: number) {
+    const response = await this.api.get(`/api/v1/entities/${entityId}`);
+    return response.data;
+  }
+
+  async updateEntity(entityId: number, data: any) {
+    const response = await this.api.patch(`/api/v1/entities/${entityId}`, data);
+    return response.data;
+  }
+
+  async suspendEntity(entityId: number) {
+    const response = await this.api.post(`/api/v1/entities/${entityId}/suspend`);
+    return response.data;
+  }
+
+  async getEntityUsage(entityId: number, days: number = 30) {
+    const response = await this.api.get(`/api/v1/entities/${entityId}/usage`, { params: { days } });
+    return response.data;
+  }
+
+  async createEntityUser(entityId: number, data: { name: string; email: string; password: string }) {
+    const response = await this.api.post(`/api/v1/entities/${entityId}/users`, data);
+    return response.data;
+  }
+
+  async getEntityInvoices(entityId: number) {
+    const response = await this.api.get(`/api/v1/entities/${entityId}/invoices`);
+    return response.data;
+  }
+
+  async generateInvoice(entityId: number, periodStart: string, periodEnd: string) {
+    const response = await this.api.post(`/api/v1/entities/${entityId}/generate-invoice`, null, {
+      params: { period_start: periodStart, period_end: periodEnd },
+    });
+    return response.data;
+  }
+
+  // ── Analytics (Admin) ─────────────────────────────────────────────
+
+  async getAnalyticsOverview() {
+    const response = await this.api.get('/api/v1/analytics/overview');
+    return response.data;
+  }
+
+  async getAnalyticsUsage(period: string = 'daily', days: number = 30) {
+    const response = await this.api.get('/api/v1/analytics/usage', { params: { period, days } });
+    return response.data;
+  }
+
+  async getAnalyticsTopEntities(limit: number = 10) {
+    const response = await this.api.get('/api/v1/analytics/top-entities', { params: { limit } });
+    return response.data;
+  }
+
+  async getAnalyticsRevenue(period: string = 'monthly') {
+    const response = await this.api.get('/api/v1/analytics/revenue', { params: { period } });
+    return response.data;
+  }
+
+  async getAnalyticsEndpoints() {
+    const response = await this.api.get('/api/v1/analytics/endpoints');
+    return response.data;
+  }
+
+  async getAnalyticsErrors() {
+    const response = await this.api.get('/api/v1/analytics/errors');
+    return response.data;
+  }
+
+  // ── Portal (Entity Self-Service) ──────────────────────────────────
+
+  async portalLogin(email: string, password: string) {
+    const params = new URLSearchParams();
+    params.append('username', email);
+    params.append('password', password);
+    const response = await this.api.post('/api/v1/portal/login', params, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    });
+    return response.data;
+  }
+
+  async getPortalDashboard() {
+    const response = await this.api.get('/api/v1/portal/dashboard');
+    return response.data;
+  }
+
+  async getPortalUsage() {
+    const response = await this.api.get('/api/v1/portal/usage');
+    return response.data;
+  }
+
+  async getPortalAPIKeys() {
+    const response = await this.api.get('/api/v1/portal/api-keys');
+    return response.data;
+  }
+
+  async createPortalAPIKey(data: { name: string; scopes: string[]; rate_limit: number; daily_quota: number }) {
+    const response = await this.api.post('/api/v1/portal/api-keys', data);
+    return response.data;
+  }
+
+  async revokePortalAPIKey(keyId: number) {
+    const response = await this.api.delete(`/api/v1/portal/api-keys/${keyId}`);
+    return response.data;
+  }
+
+  async getPortalDocuments() {
+    const response = await this.api.get('/api/v1/portal/documents');
+    return response.data;
+  }
+
+  async getPortalBilling() {
+    const response = await this.api.get('/api/v1/portal/billing');
+    return response.data;
+  }
+
+  async getPortalWebhooks() {
+    const response = await this.api.get('/api/v1/portal/webhooks');
+    return response.data;
+  }
+
+  async testPortalWebhook() {
+    const response = await this.api.post('/api/v1/portal/webhooks/test');
+    return response.data;
+  }
 }
 
 export const apiService = new ApiService();
