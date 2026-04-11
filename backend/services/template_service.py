@@ -23,6 +23,29 @@ class TemplateService:
         """Initialize template service."""
         self.match_threshold = settings.TEMPLATE_MATCH_THRESHOLD
 
+    def read_ocr_data(self, document: Any) -> List[Dict[str, Any]]:
+        """Load OCR page JSON payloads for a document."""
+        from documents.models import OCRPage
+        from services.storage import storage_service
+
+        ocr_pages = OCRPage.objects.filter(document_id=document.id).order_by("page_no")
+        pages_data: List[Dict[str, Any]] = []
+
+        for ocr_page in ocr_pages:
+            try:
+                full_json_path = storage_service.get_full_path(ocr_page.json_path)
+                with open(full_json_path, "r", encoding="utf-8") as f:
+                    pages_data.append(json.load(f))
+            except Exception as e:
+                logger.error(
+                    "template_ocr_json_read_error",
+                    page_id=ocr_page.id,
+                    document_id=document.id,
+                    error=str(e),
+                )
+
+        return pages_data
+
     def compute_document_signature(
         self,
         ocr_result: Dict[str, Any],
@@ -336,9 +359,28 @@ class TemplateService:
 class FieldExtractor:
     """Service for extracting fields from documents using templates."""
 
-    def __init__(self):
+    def __init__(self, fields_json: Optional[Dict[str, Any]] = None, rules_json: Optional[Dict[str, Any]] = None):
         """Initialize field extractor."""
-        pass
+        self.template_config = {
+            "fields_json": fields_json or {},
+            "rules_json": rules_json or {},
+        }
+
+    def extract(self, ocr_pages: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Backward-compatible extraction API used by existing views."""
+        extracted_fields = self.extract_fields(ocr_pages, self.template_config)
+
+        fields: Dict[str, Any] = {}
+        confidence: Dict[str, float] = {}
+        for field_name, payload in extracted_fields.items():
+            fields[field_name] = payload.get("value")
+            confidence[field_name] = float(payload.get("confidence", 0.0))
+
+        return {
+            "fields": fields,
+            "confidence": confidence,
+            "details": extracted_fields,
+        }
 
     def extract_fields(
         self, ocr_pages: List[Dict[str, Any]], template_config: Dict[str, Any]
