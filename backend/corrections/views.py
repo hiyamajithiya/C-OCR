@@ -323,6 +323,7 @@ class ProcessLearningView(APIView):
 
     def post(self, request):
         """Trigger ML learning process for templates with sufficient corrections."""
+        from services.learning_service import learning_service
         from services.ml_training_service import ml_training_service
 
         AuditLog.objects.create(
@@ -334,7 +335,10 @@ class ProcessLearningView(APIView):
             user_agent=request.META.get("HTTP_USER_AGENT", ""),
         )
 
-        # Find template+field combos with >= 20 corrections
+        # First, process and mark all pending corrections so history no longer stays pending.
+        learning_summary = learning_service.process_corrections(request.user.tenant_id)
+
+        # Then train ML models for template+field combos with sufficient corrections.
         field_groups = (
             ExtractionCorrection.objects.filter(
                 tenant=request.user.tenant,
@@ -357,6 +361,8 @@ class ProcessLearningView(APIView):
 
         return Response({
             "status": "completed",
-            "processed_count": len(training_results),
+            "processed_count": learning_summary.get("processed_count", 0),
+            "abbreviations_learned": learning_summary.get("abbreviations_learned", 0),
+            "training_models_count": len(training_results),
             "training_results": training_results,
         })
