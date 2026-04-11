@@ -584,9 +584,9 @@ const ExtractionResultsPage: React.FC = () => {
                             {correction.field_label || correction.field_name}
                           </Typography>
                           {correction.is_processed ? (
-                            <Chip label="Processed" size="small" color="success" />
+                            <Chip label="Learned" size="small" color="success" />
                           ) : (
-                            <Chip label="Pending" size="small" color="warning" />
+                            <Chip label="Awaiting Learn" size="small" color="warning" />
                           )}
                         </Box>
                       }
