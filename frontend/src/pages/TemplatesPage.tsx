@@ -30,6 +30,8 @@ import {
   Search,
   Edit,
   PlayArrow,
+  Delete,
+  WarningAmber,
   Category,
   CalendarToday,
   Close,
@@ -54,6 +56,9 @@ const TemplatesPage: React.FC = () => {
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [templateToDelete, setTemplateToDelete] = useState<Template | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [newTemplate, setNewTemplate] = useState({
     name: '',
     description: '',
@@ -84,6 +89,29 @@ const TemplatesPage: React.FC = () => {
       loadTemplates();
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Failed to create template');
+    }
+  };
+
+  const handleOpenDeleteDialog = (template: Template) => {
+    setError('');
+    setTemplateToDelete(template);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteTemplate = async () => {
+    if (!templateToDelete) return;
+
+    setDeleting(true);
+    setError('');
+    try {
+      await apiService.deleteTemplate(templateToDelete.id);
+      setDeleteDialogOpen(false);
+      setTemplateToDelete(null);
+      await loadTemplates();
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Failed to delete template');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -300,6 +328,16 @@ const TemplatesPage: React.FC = () => {
                     >
                       Train
                     </Button>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="error"
+                      startIcon={<Delete />}
+                      onClick={() => handleOpenDeleteDialog(template)}
+                      sx={{ flex: 1 }}
+                    >
+                      Delete
+                    </Button>
                   </Box>
                 </CardContent>
               </Card>
@@ -355,6 +393,43 @@ const TemplatesPage: React.FC = () => {
           <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
           <Button onClick={handleCreateTemplate} variant="contained" disabled={!newTemplate.name}>
             Create Template
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => !deleting && setDeleteDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <WarningAmber sx={{ color: colors.warning.main }} />
+          Delete Template
+        </DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            It will completely delete the template.
+          </Alert>
+          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+            This action cannot be undone. All template versions linked to
+            <Typography component="span" sx={{ fontWeight: 700, mx: 0.5 }}>
+              {templateToDelete?.name || 'this template'}
+            </Typography>
+            will be permanently removed.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2.5 }}>
+          <Button onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleDeleteTemplate}
+            disabled={deleting}
+          >
+            {deleting ? 'Deleting...' : 'Delete Template'}
           </Button>
         </DialogActions>
       </Dialog>

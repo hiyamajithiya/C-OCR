@@ -135,6 +135,11 @@ class ApiService {
     return response.data;
   }
 
+  async deleteTemplate(templateId: number) {
+    const response = await this.api.delete(`/api/v1/templates/${templateId}`);
+    return response.data;
+  }
+
   async getTemplateVersions(templateId: number) {
     const response = await this.api.get(`/api/v1/templates/${templateId}/versions`);
     return response.data;
