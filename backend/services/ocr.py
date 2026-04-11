@@ -3,6 +3,9 @@ OCR processing service for extracting text from documents.
 """
 
 import json
+import os
+import platform
+import shutil
 from pathlib import Path
 from typing import List, Dict, Any
 import structlog
@@ -30,14 +33,10 @@ class OCRService:
         """Initialize OCR service."""
         # Try to detect Tesseract installation
         if TESSERACT_AVAILABLE:
-            # Set Tesseract executable path for Windows
-            import platform
-
-            if platform.system() == "Windows":
-                tesseract_path = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-                if Path(tesseract_path).exists():
-                    pytesseract.pytesseract.tesseract_cmd = tesseract_path
-                    logger.info("tesseract_path_configured", path=tesseract_path)
+            tesseract_path = self._detect_tesseract_path()
+            if tesseract_path:
+                pytesseract.pytesseract.tesseract_cmd = str(tesseract_path)
+                logger.info("tesseract_path_configured", path=str(tesseract_path))
 
             try:
                 version = pytesseract.get_tesseract_version()
@@ -48,6 +47,38 @@ class OCRService:
                     "tesseract_install_hint",
                     message="Install from: https://github.com/UB-Mannheim/tesseract/wiki",
                 )
+
+    def _detect_tesseract_path(self) -> Path | None:
+        """Detect Tesseract executable path from env, PATH, and common install locations."""
+        candidates: List[str] = []
+
+        env_cmd = os.getenv("TESSERACT_CMD") or os.getenv("TESSERACT_PATH")
+        if env_cmd:
+            env_path = Path(env_cmd)
+            if env_path.is_dir():
+                candidates.append(str(env_path / "tesseract.exe"))
+            else:
+                candidates.append(str(env_path))
+
+        in_path = shutil.which("tesseract")
+        if in_path:
+            candidates.append(in_path)
+
+        if platform.system() == "Windows":
+            candidates.extend(
+                [
+                    r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+                    r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+                    r"D:\Program Files\Tesseract-OCR\tesseract.exe",
+                    r"D:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+                ]
+            )
+
+        for candidate in candidates:
+            if candidate and Path(candidate).exists():
+                return Path(candidate)
+
+        return None
 
     def process_document(self, file_path: str, language: str = "eng") -> Dict[str, Any]:
         """

@@ -3,7 +3,11 @@ OCR service integrating PaddleOCR and Tesseract.
 """
 
 import numpy as np
+import os
+import platform
+import shutil
 from typing import List, Dict, Any, Optional
+from pathlib import Path
 from PIL import Image
 import structlog
 
@@ -147,7 +151,45 @@ class TesseractOCREngine(OCREngine):
         Args:
             lang: Language code (use 'eng' for English)
         """
+        self._configure_tesseract_path()
         self.lang = lang
+
+    def _configure_tesseract_path(self) -> None:
+        """Configure pytesseract executable from env/PATH/common install locations."""
+        try:
+            import pytesseract
+
+            candidates: List[str] = []
+
+            env_cmd = os.getenv("TESSERACT_CMD") or os.getenv("TESSERACT_PATH")
+            if env_cmd:
+                env_path = Path(env_cmd)
+                if env_path.is_dir():
+                    candidates.append(str(env_path / "tesseract.exe"))
+                else:
+                    candidates.append(str(env_path))
+
+            in_path = shutil.which("tesseract")
+            if in_path:
+                candidates.append(in_path)
+
+            if platform.system() == "Windows":
+                candidates.extend(
+                    [
+                        r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+                        r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+                        r"D:\Program Files\Tesseract-OCR\tesseract.exe",
+                        r"D:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+                    ]
+                )
+
+            for candidate in candidates:
+                if candidate and Path(candidate).exists():
+                    pytesseract.pytesseract.tesseract_cmd = candidate
+                    logger.info("tesseract_path_configured", path=candidate)
+                    break
+        except Exception as e:
+            logger.warning("tesseract_path_configuration_failed", error=str(e))
 
     def recognize(self, image: np.ndarray) -> Dict[str, Any]:
         """
