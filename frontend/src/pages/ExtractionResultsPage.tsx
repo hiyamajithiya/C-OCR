@@ -3,7 +3,7 @@
  * Includes functionality to correct extracted values and submit feedback.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -77,6 +77,7 @@ interface RawExtractionResult {
 
 interface Correction {
   id: number;
+  extraction_result_id?: number | null;
   field_name: string;
   field_label?: string;
   original_value?: string;
@@ -116,6 +117,18 @@ const ExtractionResultsPage: React.FC = () => {
   useEffect(() => {
     loadData();
   }, [documentId]);
+
+  const latestCorrectionValueMap = useMemo(() => {
+    const map: { [key: string]: string } = {};
+    // Corrections are already ordered newest-first from API.
+    for (const correction of corrections) {
+      const key = `${correction.extraction_result_id}_${correction.field_name}`;
+      if (!(key in map)) {
+        map[key] = correction.corrected_value ?? '';
+      }
+    }
+    return map;
+  }, [corrections]);
 
   const normalizeExtractions = (results: RawExtractionResult[]): ExtractionData[] => {
     return (results || []).map((result) => {
@@ -312,9 +325,15 @@ const ExtractionResultsPage: React.FC = () => {
     }
   };
 
+  const getBaseFieldValue = (extractionId: number, fieldName: string, originalValue: string) => {
+    const key = `${extractionId}_${fieldName}`;
+    return latestCorrectionValueMap[key] ?? originalValue;
+  };
+
   const getEditedValue = (extractionId: number, fieldName: string, originalValue: string) => {
     const key = `${extractionId}_${fieldName}`;
-    return editedFields[key]?.newValue ?? originalValue;
+    const baseValue = getBaseFieldValue(extractionId, fieldName, originalValue);
+    return editedFields[key]?.newValue ?? baseValue;
   };
 
   const hasChanges = (extractionId: number) => {
@@ -446,6 +465,11 @@ const ExtractionResultsPage: React.FC = () => {
                       {Object.entries(extraction.extracted_data || {}).map(([fieldName, fieldData]) => {
                         const key = `${extraction.extraction_result_id}_${fieldName}`;
                         const isEdited = !!editedFields[key];
+                        const baseValue = getBaseFieldValue(
+                          extraction.extraction_result_id,
+                          fieldName,
+                          fieldData.value || ''
+                        );
                         const displayValue = getEditedValue(
                           extraction.extraction_result_id,
                           fieldName,
@@ -478,7 +502,7 @@ const ExtractionResultsPage: React.FC = () => {
                                       extraction.extraction_result_id,
                                       fieldName,
                                       e.target.value,
-                                      fieldData.value || '',
+                                      baseValue,
                                       fieldData
                                     )
                                   }
@@ -491,7 +515,7 @@ const ExtractionResultsPage: React.FC = () => {
                                 />
                               ) : (
                                 <Typography variant="body2">
-                                  {fieldData.value || <em style={{ color: '#999' }}>No value extracted</em>}
+                                  {displayValue || <em style={{ color: '#999' }}>No value extracted</em>}
                                 </Typography>
                               )}
                             </TableCell>
