@@ -43,6 +43,8 @@ const StatsCard: React.FC<StatsCardProps> = ({
     <Box
       onClick={onClick}
       sx={{
+        width: '100%',
+        minHeight: 176,
         p: 3,
         borderRadius: 3,
         bgcolor: 'background.paper',
@@ -51,6 +53,8 @@ const StatsCard: React.FC<StatsCardProps> = ({
         transition: 'all 0.3s ease',
         position: 'relative',
         overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
         '&:hover': onClick
           ? {
               transform: 'translateY(-4px)',
@@ -109,10 +113,10 @@ const StatsCard: React.FC<StatsCardProps> = ({
         )}
       </Box>
 
-      <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5 }}>
+      <Typography variant="h4" sx={{ fontWeight: 700, mb: 0.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
         {value}
       </Typography>
-      <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 500 }}>
+      <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
         {title}
       </Typography>
       {subtitle && (
