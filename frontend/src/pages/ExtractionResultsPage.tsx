@@ -63,6 +63,18 @@ interface ExtractionData {
   created_at: string;
 }
 
+interface RawExtractionResult {
+  id?: number;
+  extraction_result_id?: number;
+  template_id?: number;
+  template_name?: string;
+  template_version_id?: number;
+  extracted_data?: Record<string, any> | null;
+  result_json?: Record<string, any> | null;
+  confidence_json?: Record<string, number> | null;
+  created_at?: string;
+}
+
 interface Correction {
   id: number;
   field_name: string;
@@ -105,6 +117,52 @@ const ExtractionResultsPage: React.FC = () => {
     loadData();
   }, [documentId]);
 
+  const normalizeExtractions = (results: RawExtractionResult[]): ExtractionData[] => {
+    return (results || []).map((result) => {
+      const rawValues = (result.extracted_data ?? result.result_json ?? {}) as Record<string, any>;
+      const rawConfidence = (result.confidence_json ?? {}) as Record<string, number>;
+
+      const extracted_data: ExtractionData['extracted_data'] = Object.fromEntries(
+        Object.entries(rawValues || {}).map(([fieldName, valueOrMeta]) => {
+          if (valueOrMeta && typeof valueOrMeta === 'object' && !Array.isArray(valueOrMeta)) {
+            return [
+              fieldName,
+              {
+                value: valueOrMeta.value ?? '',
+                confidence: Number(valueOrMeta.confidence ?? rawConfidence[fieldName] ?? 0),
+                status: valueOrMeta.status ?? 'extracted',
+                field_label: valueOrMeta.field_label,
+                field_type: valueOrMeta.field_type,
+                extraction_method: valueOrMeta.extraction_method,
+              },
+            ];
+          }
+
+          return [
+            fieldName,
+            {
+              value: valueOrMeta ?? '',
+              confidence: Number(rawConfidence[fieldName] ?? 0),
+              status: 'extracted',
+              field_label: fieldName,
+              field_type: 'text',
+              extraction_method: 'unknown',
+            },
+          ];
+        })
+      );
+
+      return {
+        extraction_result_id: result.extraction_result_id ?? result.id ?? 0,
+        template_id: result.template_id ?? 0,
+        template_name: result.template_name ?? `Template #${result.template_id ?? 'Unknown'}`,
+        template_version_id: result.template_version_id ?? 0,
+        extracted_data,
+        created_at: result.created_at ?? new Date().toISOString(),
+      };
+    });
+  };
+
   const loadData = async () => {
     try {
       setLoading(true);
@@ -116,7 +174,7 @@ const ExtractionResultsPage: React.FC = () => {
 
       // Load extraction results
       const results = await apiService.getDocumentExtractions(Number(documentId));
-      setExtractions(results);
+      setExtractions(normalizeExtractions(results));
 
       // Load correction history
       try {
@@ -385,7 +443,7 @@ const ExtractionResultsPage: React.FC = () => {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {Object.entries(extraction.extracted_data).map(([fieldName, fieldData]) => {
+                      {Object.entries(extraction.extracted_data || {}).map(([fieldName, fieldData]) => {
                         const key = `${extraction.extraction_result_id}_${fieldName}`;
                         const isEdited = !!editedFields[key];
                         const displayValue = getEditedValue(
