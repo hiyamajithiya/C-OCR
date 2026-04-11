@@ -68,6 +68,8 @@ const DashboardPage: React.FC = () => {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [templates, setTemplates] = useState<any[]>([]);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const [mlAccuracy, setMlAccuracy] = useState<number | null>(null);
+  const [mlModelCount, setMlModelCount] = useState<number>(0);
 
   useEffect(() => {
     loadDashboardData();
@@ -99,9 +101,43 @@ const DashboardPage: React.FC = () => {
       // Try to load audit logs for activity
       try {
         const logsResponse = await apiService.listAuditLogs({ limit: 10 });
-        setActivities(logsResponse?.items || []);
+        // Backend returns a plain array
+        const list = Array.isArray(logsResponse)
+          ? logsResponse
+          : logsResponse?.items || [];
+        setActivities(list);
       } catch {
         setActivities([]);
+      }
+
+      // Compute average ML accuracy from active trained models across templates
+      try {
+        const statusResults = await Promise.allSettled(
+          (templatesResponse || []).map((t: any) =>
+            apiService.getTemplateTrainingStatus(t.id)
+          )
+        );
+        const scores: number[] = [];
+        statusResults.forEach((r) => {
+          if (r.status === 'fulfilled' && r.value?.fields) {
+            r.value.fields.forEach((f: any) => {
+              if (f.model_active && typeof f.accuracy_score === 'number') {
+                scores.push(f.accuracy_score);
+              }
+            });
+          }
+        });
+        if (scores.length > 0) {
+          const avg = scores.reduce((sum, s) => sum + s, 0) / scores.length;
+          setMlAccuracy(avg);
+          setMlModelCount(scores.length);
+        } else {
+          setMlAccuracy(null);
+          setMlModelCount(0);
+        }
+      } catch {
+        setMlAccuracy(null);
+        setMlModelCount(0);
       }
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
@@ -233,13 +269,28 @@ const DashboardPage: React.FC = () => {
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
-          <StatsCard
-            title="Accuracy Rate"
-            value="94%"
-            icon={<Speed sx={{ fontSize: 24 }} />}
-            color="warning"
-            trend={{ value: 3, isPositive: true }}
-          />
+          <Tooltip
+            title={
+              mlModelCount === 0
+                ? 'Train a template to see the average ML model accuracy. Submit corrections from Extraction Results then click Learn.'
+                : `Mean accuracy across ${mlModelCount} active ML model${mlModelCount > 1 ? 's' : ''}`
+            }
+          >
+            <Box sx={{ height: '100%' }}>
+              <StatsCard
+                title="ML Model Accuracy"
+                value={
+                  loading
+                    ? '...'
+                    : mlAccuracy !== null
+                    ? `${Math.round(mlAccuracy * 100)}%`
+                    : '—'
+                }
+                icon={<Speed sx={{ fontSize: 24 }} />}
+                color="warning"
+              />
+            </Box>
+          </Tooltip>
         </Grid>
       </Grid>
 

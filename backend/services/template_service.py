@@ -359,12 +359,30 @@ class TemplateService:
 class FieldExtractor:
     """Service for extracting fields from documents using templates."""
 
-    def __init__(self, fields_json: Optional[Dict[str, Any]] = None, rules_json: Optional[Dict[str, Any]] = None):
-        """Initialize field extractor."""
+    def __init__(
+        self,
+        fields_json: Optional[Dict[str, Any]] = None,
+        rules_json: Optional[Dict[str, Any]] = None,
+        template_id: Optional[int] = None,
+        signature_json: Optional[Dict[str, Any]] = None,
+    ):
+        """
+        Initialize field extractor.
+
+        Args:
+            fields_json: Field definitions from the template version.
+            rules_json: Validation rules from the template version.
+            template_id: If provided, trained ML models scoped to this template
+                are used to blend confidence scores.
+            signature_json: Template signature — used to scale field bbox
+                coordinates to the OCR page's coordinate system.
+        """
         self.template_config = {
             "fields_json": fields_json or {},
             "rules_json": rules_json or {},
         }
+        self.template_id = template_id
+        self.signature_json = signature_json or {}
 
     def extract(self, ocr_pages: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Backward-compatible extraction API used by existing views."""
@@ -432,7 +450,7 @@ class FieldExtractor:
             extracted[field_name] = {
                 "value": value,
                 "confidence": self._calculate_field_confidence(
-                    value, field_def, extraction_method, ocr_confidence
+                    value, field_def, extraction_method, ocr_confidence, field_name=field_name
                 ),
                 "field_label": field_def.get("label", field_name),
                 "field_type": field_def.get("type", "text"),
@@ -442,6 +460,36 @@ class FieldExtractor:
         logger.info("fields_extracted", field_count=len(extracted))
 
         return extracted
+
+    def _bbox_scale_factor(self, ocr_result: Dict[str, Any]) -> float:
+        """
+        Compute scale factor to map template-draw-space bbox coordinates
+        to OCR-space coordinates. Templates are drawn at 150 DPI in the UI
+        while OCR extracts coordinates at 300 DPI, so typically returns 2.0.
+
+        Legacy templates don't store draw dimensions, so we fall back to the
+        default 150→300 DPI ratio of 2.0 when no info is available.
+        """
+        draw_w = self.signature_json.get("draw_image_width")
+        draw_h = self.signature_json.get("draw_image_height")
+        ocr_w = ocr_result.get("image_width")
+        ocr_h = ocr_result.get("image_height")
+
+        # Prefer width ratio (templates are wider than tall typically)
+        if draw_w and ocr_w and draw_w > 0:
+            return float(ocr_w) / float(draw_w)
+        if draw_h and ocr_h and draw_h > 0:
+            return float(ocr_h) / float(draw_h)
+
+        # Fall back to DPI ratio if dimensions unknown
+        draw_dpi = self.signature_json.get("draw_dpi")
+        ocr_dpi = ocr_result.get("dpi", 300)
+        if draw_dpi and ocr_dpi and draw_dpi > 0:
+            return float(ocr_dpi) / float(draw_dpi)
+
+        # Legacy templates: the frontend has always used 150 DPI for drawing
+        # and OCR extracts at 300 DPI, so assume 2.0 for best compatibility.
+        return 2.0
 
     def _extract_from_bbox(
         self, ocr_result: Dict[str, Any], field_def: Dict[str, Any]
@@ -461,10 +509,12 @@ class FieldExtractor:
         # First, check if we have words_with_coords (preferred for bbox extraction)
         words_with_coords = ocr_result.get("words_with_coords", [])
 
-        x = field_def.get("x", 0)
-        y = field_def.get("y", 0)
-        width = field_def.get("width", 0)
-        height = field_def.get("height", 0)
+        # Scale bbox coordinates from template draw space to OCR space
+        scale = self._bbox_scale_factor(ocr_result)
+        x = field_def.get("x", 0) * scale
+        y = field_def.get("y", 0) * scale
+        width = field_def.get("width", 0) * scale
+        height = field_def.get("height", 0) * scale
         field_type = field_def.get("type", "text")
 
         # If we have words with coordinates and valid bbox, use coordinate-based extraction
@@ -475,24 +525,30 @@ class FieldExtractor:
             field_x2 = x + width
             field_y2 = y + height
 
-            # Find words within or overlapping the bbox
+            # Find words overlapping the bbox (rectangle intersection test).
+            # This is more forgiving than strict center-in-box matching and
+            # catches words that are partially inside a drawn region.
             words_in_box = []
             for word in words_with_coords:
                 word_x = word.get("x", 0)
                 word_y = word.get("y", 0)
                 word_width = word.get("width", 0)
                 word_height = word.get("height", 0)
+                word_x2 = word_x + word_width
+                word_y2 = word_y + word_height
 
-                # Calculate word center point
-                word_center_x = word_x + word_width / 2
-                word_center_y = word_y + word_height / 2
+                # Compute intersection
+                ix1 = max(field_x1, word_x)
+                iy1 = max(field_y1, word_y)
+                ix2 = min(field_x2, word_x2)
+                iy2 = min(field_y2, word_y2)
 
-                # Check if word center is within the field bbox
-                if (
-                    field_x1 <= word_center_x <= field_x2
-                    and field_y1 <= word_center_y <= field_y2
-                ):
-                    words_in_box.append(word)
+                if ix2 > ix1 and iy2 > iy1:
+                    # Require at least 40% of the word area to be inside the bbox
+                    inter_area = (ix2 - ix1) * (iy2 - iy1)
+                    word_area = max(word_width * word_height, 1)
+                    if inter_area / word_area >= 0.4:
+                        words_in_box.append(word)
 
             if words_in_box:
                 # Sort by position (top to bottom, left to right)
@@ -553,10 +609,85 @@ class FieldExtractor:
         full_text = ocr_result.get("text", "")
 
         if field_label and full_text:
-            # Try to find the field label in the text and extract nearby value
+            if field_type == "text":
+                # Text fields: extract the next words/line after the label
+                text_result = self._extract_text_by_label(
+                    full_text, field_label, field_def, ocr_result
+                )
+                if text_result[0]:
+                    return text_result
+                # If label search failed, try the first words from the full text
+                # as a best-effort (only for fields on page 1 like company name)
+                return (None, "none", 0.0)
+
+            # Numeric / date / currency fields: use label search for numbers
             return self._extract_by_label_search(
                 full_text, field_label, field_def, ocr_result
             )
+
+        return (None, "none", 0.0)
+
+    def _extract_text_by_label(
+        self,
+        full_text: str,
+        field_label: str,
+        field_def: Dict[str, Any],
+        ocr_result: Dict[str, Any] = None,
+    ) -> Tuple[Optional[str], str, float]:
+        """
+        Extract a text value by searching for a label in the OCR text
+        and returning the text immediately after the label on the same
+        line, or on the next line if nothing follows on the same line.
+        """
+        import re
+
+        page_confidence = ocr_result.get("confidence", 0.0) * 100 if ocr_result else 0.0
+        label_lower = field_label.strip().lower()
+        field_name = (field_def.get("name") or "").strip().lower()
+
+        if not label_lower and not field_name:
+            return (None, "none", 0.0)
+
+        # Build set of search phrases
+        search_phrases = set()
+        if label_lower:
+            search_phrases.add(label_lower)
+        if field_name and field_name != label_lower:
+            search_phrases.add(field_name)
+            # Replace underscores with spaces for readability match
+            search_phrases.add(field_name.replace("_", " "))
+
+        lines = [ln.strip() for ln in full_text.split("\n") if ln.strip()]
+
+        for phrase in search_phrases:
+            if len(phrase) < 2:
+                continue
+            pattern = re.compile(
+                r"(?i)" + re.escape(phrase) + r"\s*[:\-]?\s*(.+)"
+            )
+            for idx, line in enumerate(lines):
+                match = pattern.search(line)
+                if not match:
+                    continue
+                after = match.group(1).strip()
+                # Drop leftover separators
+                after = re.sub(r"^[:\-\s]+", "", after)
+                if after:
+                    return (after, "label_search", page_confidence)
+                # Nothing after label on this line — try the next line
+                if idx + 1 < len(lines):
+                    next_line = lines[idx + 1].strip()
+                    if next_line:
+                        return (next_line, "label_search", page_confidence)
+
+        # Last-ditch: if the field is on page 1 and is a common header field
+        # (like Company Name), return the first non-trivial header line.
+        if field_def.get("page", 1) == 1 and lines:
+            for candidate in lines[:10]:
+                cleaned = candidate.strip()
+                # Skip header-looking lines containing only dates or numbers
+                if len(cleaned) >= 3 and re.search(r"[A-Za-z]{3,}", cleaned):
+                    return (cleaned, "header_heuristic", max(page_confidence - 20, 50))
 
         return (None, "none", 0.0)
 
@@ -896,6 +1027,7 @@ class FieldExtractor:
         field_def: Dict[str, Any],
         extraction_method: str = "unknown",
         ocr_confidence: float = 0.0,
+        field_name: Optional[str] = None,
     ) -> float:
         """
         Calculate confidence score for extracted field.
@@ -961,7 +1093,40 @@ class FieldExtractor:
         # Ensure confidence is within bounds
         confidence = max(0.0, min(1.0, confidence))
 
-        return round(confidence, 2)
+        # If a trained ML model exists for this template+field, blend in its prediction
+        rule_confidence = round(confidence, 2)
+        name = field_name or field_def.get("name")
+        if self.template_id and name:
+            try:
+                from services.ml_training_service import ml_training_service
+
+                ml_confidence = ml_training_service.predict_confidence(
+                    template_id=self.template_id,
+                    field_name=name,
+                    extracted_value=value,
+                    ocr_confidence=rule_confidence,
+                    context_text="",
+                )
+                # predict_confidence returns the input ocr_confidence untouched when
+                # no model file exists, so only log + use when it actually changed.
+                if ml_confidence is not None and abs(ml_confidence - rule_confidence) > 1e-6:
+                    logger.info(
+                        "ml_confidence_used",
+                        template_id=self.template_id,
+                        field_name=name,
+                        rule_confidence=rule_confidence,
+                        ml_confidence=ml_confidence,
+                    )
+                    return round(float(ml_confidence), 2)
+            except Exception as exc:
+                logger.warning(
+                    "ml_confidence_error",
+                    template_id=self.template_id,
+                    field_name=name,
+                    error=str(exc),
+                )
+
+        return rule_confidence
 
 
 # Global service instances

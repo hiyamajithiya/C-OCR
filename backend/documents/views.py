@@ -5,11 +5,13 @@ Document views — replaces FastAPI document endpoints.
 import json
 import os
 import shutil
+import threading
 import traceback
 from io import BytesIO
 from pathlib import Path
 
 import structlog
+from django.db import close_old_connections
 from django.http import HttpResponse
 from rest_framework import status
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -23,6 +25,65 @@ from services.storage import storage_service
 from services.ocr import ocr_service
 
 logger = structlog.get_logger()
+
+
+def _run_ocr_background(document_id: int, tenant_id: int, file_path: str, language: str):
+    """
+    Run OCR in a background thread. Updates document status as it progresses.
+    Called from the upload view after saving the file.
+    """
+    close_old_connections()  # fresh DB connection for this thread
+    try:
+        document = Document.objects.filter(id=document_id).first()
+        if not document:
+            logger.error("ocr_background_document_missing", document_id=document_id)
+            return
+
+        document.status = "processing"
+        document.save(update_fields=["status", "updated_at"])
+
+        full_path = storage_service.get_full_path(file_path)
+        ocr_results = ocr_service.process_document(full_path, language=language)
+
+        for page_data in ocr_results.get("pages", []):
+            page_num = page_data.get("page_number", 1)
+            json_filename = f"ocr_page_{page_num}.json"
+            json_data = json.dumps(page_data, indent=2).encode("utf-8")
+            json_buffer = BytesIO(json_data)
+
+            ocr_json_path, _ = storage_service.save_processed(
+                file_data=json_buffer,
+                tenant_id=tenant_id,
+                document_id=document_id,
+                filename=json_filename,
+                kind="ocr_json",
+            )
+
+            OCRPage.objects.create(
+                document_id=document_id,
+                page_no=page_num,
+                engine="tesseract",
+                lang=language,
+                dpi=300,
+                json_path=ocr_json_path,
+            )
+
+        document.status = "extracted"
+        document.page_count = ocr_results.get("page_count", 1)
+        document.save(update_fields=["status", "page_count", "updated_at"])
+
+        logger.info("document_processed", document_id=document_id, pages=document.page_count)
+
+    except Exception as ocr_error:
+        logger.error(
+            "ocr_processing_error",
+            document_id=document_id,
+            error=str(ocr_error),
+            traceback=traceback.format_exc(),
+        )
+        Document.objects.filter(id=document_id).update(status="error")
+    finally:
+        close_old_connections()
 
 ALLOWED_MIME_TYPES = [
     "application/pdf",
@@ -167,47 +228,17 @@ class DocumentListCreateView(APIView):
                 },
             )
 
-            # 5. Trigger OCR processing (synchronous for development)
-            try:
-                document.status = "processing"
-                document.save()
+            # 5. Trigger OCR in background thread (non-blocking)
+            document.status = "processing"
+            document.save(update_fields=["status", "updated_at"])
 
-                full_path = storage_service.get_full_path(file_path)
-                ocr_results = ocr_service.process_document(full_path, language=language)
-
-                for page_data in ocr_results.get("pages", []):
-                    page_num = page_data.get("page_number", 1)
-                    json_filename = f"ocr_page_{page_num}.json"
-                    json_data = json.dumps(page_data, indent=2).encode("utf-8")
-                    json_buffer = BytesIO(json_data)
-
-                    ocr_json_path, _ = storage_service.save_processed(
-                        file_data=json_buffer,
-                        tenant_id=user.tenant_id,
-                        document_id=document.id,
-                        filename=json_filename,
-                        kind="ocr_json",
-                    )
-
-                    OCRPage.objects.create(
-                        document_id=document.id,
-                        page_no=page_num,
-                        engine="tesseract",
-                        lang=language,
-                        dpi=300,
-                        json_path=ocr_json_path,
-                    )
-
-                document.status = "extracted"
-                document.page_count = ocr_results.get("page_count", 1)
-                document.save()
-
-                logger.info("document_processed", document_id=document.id, pages=document.page_count)
-
-            except Exception as ocr_error:
-                logger.error("ocr_processing_error", document_id=document.id, error=str(ocr_error))
-                document.status = "error"
-                document.save()
+            thread = threading.Thread(
+                target=_run_ocr_background,
+                args=(document.id, user.tenant_id, file_path, language),
+                daemon=True,
+            )
+            thread.start()
+            logger.info("ocr_background_started", document_id=document.id)
 
             return Response(
                 {

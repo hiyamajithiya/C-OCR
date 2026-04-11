@@ -114,9 +114,27 @@ const ExtractionResultsPage: React.FC = () => {
   // History dialog
   const [historyOpen, setHistoryOpen] = useState(false);
 
+  // Learn info banner — dismissible via localStorage
+  const [showLearnBanner, setShowLearnBanner] = useState(() => {
+    try {
+      return localStorage.getItem('hide_learn_banner') !== '1';
+    } catch {
+      return true;
+    }
+  });
+
   useEffect(() => {
     loadData();
   }, [documentId]);
+
+  const dismissLearnBanner = () => {
+    setShowLearnBanner(false);
+    try {
+      localStorage.setItem('hide_learn_banner', '1');
+    } catch {
+      /* ignore */
+    }
+  };
 
   const latestCorrectionValueMap = useMemo(() => {
     const map: { [key: string]: string } = {};
@@ -308,11 +326,42 @@ const ExtractionResultsPage: React.FC = () => {
     try {
       setSubmitting(true);
       const result = await apiService.triggerLearningProcess();
+
+      const trainedCount = result.training_models_count || 0;
+      const trainingResults = result.training_results || [];
+      const actuallyTrained = trainingResults.filter(
+        (r: any) => r.status === 'trained'
+      ).length;
+
+      let message = `Learning complete: ${result.processed_count} corrections processed`;
+      if (result.abbreviations_learned > 0) {
+        message += `, ${result.abbreviations_learned} new patterns learned`;
+      }
+      if (actuallyTrained > 0) {
+        const avgAcc =
+          trainingResults
+            .filter((r: any) => r.status === 'trained' && r.accuracy)
+            .reduce((sum: number, r: any) => sum + r.accuracy, 0) / actuallyTrained || 0;
+        message += `. 🧠 ${actuallyTrained} ML model${
+          actuallyTrained > 1 ? 's' : ''
+        } trained (avg accuracy: ${Math.round(avgAcc * 100)}%)`;
+      } else if (trainedCount === 0) {
+        message += '. No models trained yet — need more corrections per field.';
+      }
+
       setSnackbar({
         open: true,
-        message: `Learning process completed: ${result.processed_count} corrections processed, ${result.abbreviations_learned} new patterns learned`,
+        message,
         severity: 'success',
       });
+
+      // Reload corrections history to reflect the updated is_processed flags
+      try {
+        const correctionHistory = await apiService.getDocumentCorrections(Number(documentId));
+        setCorrections(correctionHistory);
+      } catch {
+        /* ignore */
+      }
     } catch (err: any) {
       console.error('Failed to trigger learning:', err);
       setSnackbar({
@@ -408,6 +457,20 @@ const ExtractionResultsPage: React.FC = () => {
           </Button>
         </Box>
       </Box>
+
+      {showLearnBanner && (
+        <Alert
+          severity="info"
+          onClose={dismissLearnBanner}
+          sx={{ mb: 3 }}
+          icon={<School />}
+        >
+          <strong>How training works:</strong> Edit wrong values and click{' '}
+          <strong>Save Corrections</strong>. After submitting enough corrections (5+ per field),
+          click <strong>Learn</strong> to train an ML model. Trained models automatically
+          improve confidence scores on future extractions.
+        </Alert>
+      )}
 
       {extractions.length === 0 ? (
         <Paper sx={{ p: 4, textAlign: 'center' }}>

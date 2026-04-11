@@ -365,8 +365,17 @@ const Layout: React.FC = () => {
 
           {/* Settings */}
           <Tooltip title="Settings">
-            <IconButton sx={{ mr: 1 }} onClick={handleMenuOpen}>
+            <IconButton sx={{ mr: 1 }} onClick={() => navigate('/settings')}>
               <Settings />
+            </IconButton>
+          </Tooltip>
+
+          {/* User Avatar Menu */}
+          <Tooltip title="Account">
+            <IconButton onClick={handleMenuOpen} sx={{ p: 0 }}>
+              <Avatar sx={{ width: 36, height: 36, bgcolor: colors.primary.main, fontWeight: 700 }}>
+                {user?.name?.charAt(0)?.toUpperCase() || '?'}
+              </Avatar>
             </IconButton>
           </Tooltip>
         </Toolbar>

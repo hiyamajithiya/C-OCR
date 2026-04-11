@@ -312,23 +312,42 @@ const TemplateBuilderPage: React.FC = () => {
     const width = Math.abs(drawing.currentX - drawing.startX);
     const height = Math.abs(drawing.currentY - drawing.startY);
 
-    // Only create field if it has meaningful size
+    // Only create/map field if it has meaningful size
     if (width > 10 && height > 10) {
-      const newField: FieldRegion = {
-        id: `field_${Date.now()}`,
-        name: '',
-        label: '',
-        type: 'text',
-        page: currentPage,
-        x: Math.min(drawing.startX, drawing.currentX),
-        y: Math.min(drawing.startY, drawing.currentY),
-        width,
-        height,
-        required: false,
-      };
+      const x = Math.min(drawing.startX, drawing.currentX);
+      const y = Math.min(drawing.startY, drawing.currentY);
 
-      setEditingField(newField);
-      setFieldDialogOpen(true);
+      // If a predefined unmapped field is selected, map the rectangle to it directly
+      const selectedField = selectedFieldId
+        ? fields.find((f) => f.id === selectedFieldId)
+        : null;
+
+      if (selectedField && selectedField.width === 0 && selectedField.height === 0) {
+        // Map the region to the selected unmapped field
+        const updated = fields.map((f) =>
+          f.id === selectedField.id
+            ? { ...f, x, y, width, height, page: currentPage }
+            : f
+        );
+        setFields(updated);
+      } else {
+        // Create a new ad-hoc field (legacy behavior)
+        const newField: FieldRegion = {
+          id: `field_${Date.now()}`,
+          name: '',
+          label: '',
+          type: 'text',
+          page: currentPage,
+          x,
+          y,
+          width,
+          height,
+          required: false,
+        };
+
+        setEditingField(newField);
+        setFieldDialogOpen(true);
+      }
     }
 
     setDrawing({
@@ -364,9 +383,9 @@ const TemplateBuilderPage: React.FC = () => {
       // Draw image synchronously (already loaded)
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-      // Draw existing fields for current page
+      // Draw existing fields for current page (skip unmapped ones with zero size)
       fields
-        .filter((f) => f.page === currentPage)
+        .filter((f) => f.page === currentPage && f.width > 0 && f.height > 0)
         .forEach((field) => {
           const isSelected = field.id === selectedFieldId;
           ctx.strokeStyle = isSelected ? '#1976d2' : '#4caf50';
@@ -443,11 +462,26 @@ const TemplateBuilderPage: React.FC = () => {
       return;
     }
 
+    const unmapped = fields.filter((f) => f.width === 0 || f.height === 0);
+    if (unmapped.length > 0) {
+      setError(
+        `Please map all fields before saving. Unmapped: ${unmapped.map((f) => f.name).join(', ')}`
+      );
+      return;
+    }
+
     setLoading(true);
     try {
       // Save template version with fields
+      // Include draw-time image dimensions + DPI so the backend can scale
+      // field coordinates to match OCR coordinates (OCR runs at 300 DPI).
       await apiService.createTemplateVersion(Number(templateId), {
-        signature_json: { sample_document_id: selectedDocId },
+        signature_json: {
+          sample_document_id: selectedDocId,
+          draw_image_width: imageDimensions.width,
+          draw_image_height: imageDimensions.height,
+          draw_dpi: 150,
+        },
         fields_json: { fields },
         rules_json: {},
       });
@@ -590,54 +624,81 @@ const TemplateBuilderPage: React.FC = () => {
             <Typography variant="h6" gutterBottom>
               Fields ({fields.length})
             </Typography>
+            <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 1 }}>
+              {fields.some((f) => f.width === 0) ? (
+                <>
+                  <strong>Step 1:</strong> Click a field below<br />
+                  <strong>Step 2:</strong> Draw a rectangle around that field on the document
+                </>
+              ) : (
+                'All fields mapped. Click "Save Template" to finish.'
+              )}
+            </Typography>
             <Divider sx={{ mb: 2 }} />
 
             {fields.length === 0 ? (
-              <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-                Draw rectangles on the document to add fields
-              </Typography>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                No fields defined. Go back to Templates and create a template with fields first, or draw rectangles here to add them manually.
+              </Alert>
             ) : (
               <List sx={{ flex: 1, overflow: 'auto' }}>
-                {fields.map((field) => (
-                  <ListItem
-                    key={field.id}
-                    button
-                    selected={field.id === selectedFieldId}
-                    onClick={() => {
-                      setSelectedFieldId(field.id);
-                      if (field.page !== currentPage) {
-                        setCurrentPage(field.page);
-                      }
-                    }}
-                    sx={{
-                      border: 1,
-                      borderColor: field.id === selectedFieldId ? 'primary.main' : 'divider',
-                      borderRadius: 1,
-                      mb: 1,
-                    }}
-                  >
-                    <ListItemText
-                      primary={field.label || field.name}
-                      secondary={
-                        <Box>
-                          <Chip label={field.type} size="small" sx={{ mr: 0.5 }} />
-                          <Chip label={`Page ${field.page}`} size="small" variant="outlined" />
-                          {field.required && (
-                            <Chip label="Required" size="small" color="warning" sx={{ ml: 0.5 }} />
-                          )}
-                        </Box>
-                      }
-                    />
-                    <ListItemSecondaryAction>
-                      <IconButton size="small" onClick={() => handleEditField(field)}>
-                        <Edit fontSize="small" />
-                      </IconButton>
-                      <IconButton size="small" onClick={() => handleDeleteField(field.id)}>
-                        <Delete fontSize="small" />
-                      </IconButton>
-                    </ListItemSecondaryAction>
-                  </ListItem>
-                ))}
+                {fields.map((field) => {
+                  const isMapped = field.width > 0 && field.height > 0;
+                  const isSelected = field.id === selectedFieldId;
+                  return (
+                    <ListItem
+                      key={field.id}
+                      button
+                      selected={isSelected}
+                      onClick={() => {
+                        setSelectedFieldId(field.id);
+                        if (isMapped && field.page !== currentPage) {
+                          setCurrentPage(field.page);
+                        }
+                      }}
+                      sx={{
+                        border: 1,
+                        borderColor: isSelected ? 'primary.main' : isMapped ? 'success.main' : 'warning.main',
+                        borderRadius: 1,
+                        mb: 1,
+                        borderWidth: isSelected ? 2 : 1,
+                      }}
+                    >
+                      <ListItemText
+                        primary={field.label || field.name}
+                        secondaryTypographyProps={{ component: 'div' }}
+                        secondary={
+                          <Box component="span" sx={{ display: 'flex', gap: 0.5, mt: 0.5 }}>
+                            <Chip label={field.type} size="small" />
+                            {isMapped ? (
+                              <Chip
+                                label={`✓ Mapped (p${field.page})`}
+                                size="small"
+                                color="success"
+                                variant="outlined"
+                              />
+                            ) : (
+                              <Chip
+                                label="⚠ Not Mapped"
+                                size="small"
+                                color="warning"
+                                variant="outlined"
+                              />
+                            )}
+                          </Box>
+                        }
+                      />
+                      <ListItemSecondaryAction>
+                        <IconButton size="small" onClick={() => handleEditField(field)}>
+                          <Edit fontSize="small" />
+                        </IconButton>
+                        <IconButton size="small" onClick={() => handleDeleteField(field.id)}>
+                          <Delete fontSize="small" />
+                        </IconButton>
+                      </ListItemSecondaryAction>
+                    </ListItem>
+                  );
+                })}
               </List>
             )}
           </Paper>

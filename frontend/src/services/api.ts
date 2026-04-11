@@ -210,6 +210,11 @@ class ApiService {
     return response.data;
   }
 
+  async getTemplateTrainingStatus(templateId: number) {
+    const response = await this.api.get(`/api/v1/corrections/template/${templateId}/training-status`);
+    return response.data;
+  }
+
   async listAbbreviations() {
     const response = await this.api.get('/api/v1/corrections/abbreviations');
     return response.data;

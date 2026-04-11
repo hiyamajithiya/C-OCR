@@ -179,6 +179,11 @@ DEFAULT_DPI = env.int("DEFAULT_DPI", default=300)
 # --- Template ---
 TEMPLATE_MATCH_THRESHOLD = env.float("TEMPLATE_MATCH_THRESHOLD", default=0.75)
 
+# --- ML Training ---
+# Minimum corrections per template+field before ML training kicks in.
+# Lowered to 5 during pilot stage so early feedback produces real models.
+ML_MIN_CORRECTIONS = env.int("ML_MIN_CORRECTIONS", default=5)
+
 # --- Server ---
 API_HOST = env("API_HOST", default="0.0.0.0")
 API_PORT = env.int("API_PORT", default=8000)

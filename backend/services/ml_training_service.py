@@ -18,6 +18,49 @@ import structlog
 logger = structlog.get_logger()
 
 
+def _min_corrections_threshold():
+    """Minimum number of corrections required before training a field model."""
+    return getattr(settings, "ML_MIN_CORRECTIONS", 5)
+
+
+def _extract_field_value(result_json, field_name):
+    """
+    ExtractionResult.result_json can store either
+    {field_name: "value"} or {field_name: {"value": "...", "confidence": 0.9, ...}}
+    Return the string value or "".
+    """
+    if not isinstance(result_json, dict):
+        return ""
+    entry = result_json.get(field_name)
+    if entry is None:
+        return ""
+    if isinstance(entry, dict):
+        return str(entry.get("value", "") or "")
+    return str(entry)
+
+
+def _extract_field_confidence(confidence_json, field_name, result_json=None):
+    """
+    ExtractionResult.confidence_json can store either
+    {field_name: 0.9} or nested inside result_json as {field_name: {confidence: 0.9}}.
+    Returns a float in [0, 1] or 0.5 if unknown.
+    """
+    if isinstance(confidence_json, dict):
+        val = confidence_json.get(field_name)
+        if isinstance(val, (int, float)):
+            return float(val)
+        if isinstance(val, dict) and "confidence" in val:
+            return float(val["confidence"])
+    if isinstance(result_json, dict):
+        entry = result_json.get(field_name)
+        if isinstance(entry, dict) and "confidence" in entry:
+            try:
+                return float(entry["confidence"])
+            except (TypeError, ValueError):
+                pass
+    return 0.5
+
+
 class MLTrainingService:
     """Trains and serves per-field ML models to improve OCR confidence scores."""
 
@@ -48,11 +91,12 @@ class MLTrainingService:
             field_name=field_name,
         ).select_related("extraction_result")
 
-        if corrections.count() < 20:
+        min_corrections = _min_corrections_threshold()
+        if corrections.count() < min_corrections:
             return {
                 "status": "insufficient_data",
                 "samples": corrections.count(),
-                "message": f"Need at least 20 corrections, have {corrections.count()}",
+                "message": f"Need at least {min_corrections} corrections, have {corrections.count()}",
             }
 
         # Build training data
@@ -84,11 +128,10 @@ class MLTrainingService:
         )[:200]
 
         for er in extraction_results:
-            extracted = er.extracted_data or {}
-            value = extracted.get(field_name, "")
+            value = _extract_field_value(er.result_json, field_name)
             if value:
-                texts.append(str(value))
-                conf = er.confidence if er.confidence is not None else 0.5
+                texts.append(value)
+                conf = _extract_field_confidence(er.confidence_json, field_name, er.result_json)
                 numerical_features.append([conf, 0])
                 labels.append(1)  # no correction means it was correct
 
@@ -222,7 +265,7 @@ class MLTrainingService:
     # ------------------------------------------------------------------
 
     def check_training_ready(self, template_id, field_name):
-        """Return True if there are >= 20 unprocessed corrections for this field."""
+        """Return True if there are enough unprocessed corrections to train this field."""
         from corrections.models import ExtractionCorrection
 
         count = ExtractionCorrection.objects.filter(
@@ -230,7 +273,7 @@ class MLTrainingService:
             field_name=field_name,
             is_processed=False,
         ).count()
-        return count >= 20
+        return count >= _min_corrections_threshold()
 
     def get_model_info(self, template_id, field_name):
         """Return info dict about the active model, or None."""

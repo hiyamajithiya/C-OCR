@@ -165,7 +165,12 @@ class ApplyTemplateView(APIView):
         try:
             template_service = TemplateService()
             ocr_data = template_service.read_ocr_data(document)
-            extractor = FieldExtractor(version.fields_json, version.rules_json)
+            extractor = FieldExtractor(
+                version.fields_json,
+                version.rules_json,
+                template_id=template.id,
+                signature_json=version.signature_json,
+            )
             extracted = extractor.extract(ocr_data)
         except Exception as e:
             return Response({"detail": f"Extraction failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

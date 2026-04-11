@@ -20,6 +20,7 @@ import UsersPage from '@/pages/UsersPage';
 import AuditLogsPage from '@/pages/AuditLogsPage';
 import EntitiesPage from '@/pages/EntitiesPage';
 import AnalyticsPage from '@/pages/AnalyticsPage';
+import SettingsPage from '@/pages/SettingsPage';
 import PortalLoginPage from '@/pages/PortalLoginPage';
 import PortalDashboardPage from '@/pages/PortalDashboardPage';
 import Layout from '@/components/Layout';
@@ -145,6 +146,7 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
+        <Route path="settings" element={<SettingsPage />} />
       </Route>
 
       {/* Portal Routes */}

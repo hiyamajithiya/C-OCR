@@ -130,15 +130,28 @@ const DocumentsPage: React.FC = () => {
     loadAllDocuments();
   }, []);
 
-  const loadAllDocuments = async () => {
-    setLoadingDocs(true);
+  // Auto-poll while any document is still processing or uploaded (not yet complete)
+  useEffect(() => {
+    const hasInProgress = allDocuments.some(
+      (d) => d.status === 'processing' || d.status === 'uploaded'
+    );
+    if (!hasInProgress) return;
+
+    const interval = setInterval(() => {
+      loadAllDocuments(true);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [allDocuments]);
+
+  const loadAllDocuments = async (silent: boolean = false) => {
+    if (!silent) setLoadingDocs(true);
     try {
       const docs = await apiService.listDocuments();
       setAllDocuments(docs);
     } catch (err) {
       console.error('Failed to load documents:', err);
     } finally {
-      setLoadingDocs(false);
+      if (!silent) setLoadingDocs(false);
     }
   };
 
