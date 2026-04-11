@@ -108,6 +108,24 @@ const DocumentsPage: React.FC = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [docToDelete, setDocToDelete] = useState<number | null>(null);
 
+  const parseServerDate = (dateString: string) => {
+    // Backend sends naive UTC timestamps; append Z so browser parses as UTC.
+    if (!dateString) return new Date(0);
+    if (dateString.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(dateString)) {
+      return new Date(dateString);
+    }
+    return new Date(`${dateString}Z`);
+  };
+
+  const formatUploadDateTime = (dateString: string) => {
+    const date = parseServerDate(dateString);
+    return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    })}`;
+  };
+
   useEffect(() => {
     loadAllDocuments();
   }, []);
@@ -581,7 +599,7 @@ const DocumentsPage: React.FC = () => {
                         </Typography>
                       )}
                       <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                        {new Date(doc.created_at).toLocaleDateString()}
+                        {formatUploadDateTime(doc.created_at)}
                       </Typography>
                     </Box>
                   </Box>
@@ -708,7 +726,7 @@ const DocumentsPage: React.FC = () => {
                       Uploaded
                     </Typography>
                     <Typography variant="body1">
-                      {new Date(selectedDoc.created_at).toLocaleString()}
+                      {formatUploadDateTime(selectedDoc.created_at)}
                     </Typography>
                   </Grid>
                 </Grid>

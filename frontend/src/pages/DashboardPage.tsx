@@ -73,6 +73,19 @@ const DashboardPage: React.FC = () => {
     loadDashboardData();
   }, []);
 
+  const parseServerDate = (dateString: string) => {
+    // Backend sends naive UTC timestamps; append Z so browser parses as UTC.
+    if (!dateString) return new Date(0);
+    if (dateString.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(dateString)) {
+      return new Date(dateString);
+    }
+    return new Date(`${dateString}Z`);
+  };
+
+  const formatUploadDate = (dateString: string) => {
+    return parseServerDate(dateString).toLocaleDateString();
+  };
+
   const loadDashboardData = async () => {
     try {
       setLoading(true);
@@ -124,7 +137,7 @@ const DashboardPage: React.FC = () => {
   };
 
   const formatTimeAgo = (dateString: string) => {
-    const date = new Date(dateString);
+    const date = parseServerDate(dateString);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
@@ -145,7 +158,9 @@ const DashboardPage: React.FC = () => {
     processing: documents.filter((d) => d.status === 'processing').length,
   };
 
-  const recentDocuments = documents.slice(0, 5);
+  const recentDocuments = [...documents]
+    .sort((a, b) => parseServerDate(b.created_at).getTime() - parseServerDate(a.created_at).getTime())
+    .slice(0, 3);
 
   return (
     <Box>
@@ -335,7 +350,7 @@ const DashboardPage: React.FC = () => {
                           </TableCell>
                           <TableCell>
                             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                              {formatTimeAgo(doc.created_at)}
+                              {formatUploadDate(doc.created_at)}
                             </Typography>
                           </TableCell>
                           <TableCell align="right">
