@@ -233,3 +233,31 @@ class DocumentExtractionsView(APIView):
             for r in results
         ]
         return Response(data)
+
+
+class TemplateDeleteView(APIView):
+    authentication_classes = [JWTBearerAuthentication]
+    permission_classes = [IsActiveUser]
+
+    def delete(self, request, template_id):
+        """Delete a template and its versions for the current tenant."""
+        try:
+            template = Template.objects.get(id=template_id, tenant=request.user.tenant)
+        except Template.DoesNotExist:
+            return Response({"detail": "Template not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        template_name = template.name
+        template.delete()
+
+        AuditLog.objects.create(
+            tenant=request.user.tenant,
+            actor_user=request.user,
+            action="template_delete",
+            entity_type="template",
+            entity_id=template_id,
+            ip=request.META.get("REMOTE_ADDR"),
+            user_agent=request.META.get("HTTP_USER_AGENT", ""),
+            metadata_json={"name": template_name},
+        )
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
