@@ -215,3 +215,36 @@ class UserUpdateView(APIView):
 
         response_serializer = UserResponseSerializer(user)
         return Response(response_serializer.data)
+
+    def delete(self, request, user_id):
+        """DELETE /api/v1/users/<user_id>/ — delete user (admin only)."""
+        try:
+            user = User.objects.get(id=user_id, tenant_id=request.user.tenant_id)
+        except User.DoesNotExist:
+            return Response(
+                {"detail": "User not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if user.id == request.user.id:
+            return Response(
+                {"detail": "You cannot delete your own account."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        deleted_user_id = user.id
+        deleted_user_email = user.email
+        user.delete()
+
+        AuditLog.objects.create(
+            tenant=request.user.tenant,
+            actor_user=request.user,
+            action="user_delete",
+            entity_type="user",
+            entity_id=deleted_user_id,
+            ip=request.META.get("REMOTE_ADDR"),
+            user_agent=request.META.get("HTTP_USER_AGENT", ""),
+            metadata_json={"email": deleted_user_email},
+        )
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
