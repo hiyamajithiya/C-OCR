@@ -304,6 +304,11 @@ class ApiService {
     return response.data;
   }
 
+  async deleteUser(userId: number) {
+    const response = await this.api.delete(`/api/v1/users/${userId}`);
+    return response.data;
+  }
+
   // Audit Logs
   async listAuditLogs(params?: { action?: string; limit?: number; offset?: number }) {
     const response = await this.api.get('/api/v1/audit-logs/', { params });

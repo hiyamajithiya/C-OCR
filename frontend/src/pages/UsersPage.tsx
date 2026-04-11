@@ -41,9 +41,12 @@ import {
   AdminPanelSettings,
   Visibility,
   Edit,
+  Delete,
+  WarningAmber,
 } from '@mui/icons-material';
 import { apiService } from '@/services/api';
 import { colors } from '@/theme/theme';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface User {
   id: number;
@@ -56,12 +59,16 @@ interface User {
 }
 
 const UsersPage: React.FC = () => {
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [newUser, setNewUser] = useState({
@@ -123,6 +130,29 @@ const UsersPage: React.FC = () => {
       setError(err.response?.data?.detail || 'Failed to update user');
     } finally {
       setUpdating(false);
+    }
+  };
+
+  const handleOpenDeleteDialog = (user: User) => {
+    setError('');
+    setUserToDelete(user);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return;
+
+    setDeleting(true);
+    setError('');
+    try {
+      await apiService.deleteUser(userToDelete.id);
+      setDeleteDialogOpen(false);
+      setUserToDelete(null);
+      await loadUsers();
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Failed to delete user');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -313,11 +343,31 @@ const UsersPage: React.FC = () => {
                           </Typography>
                         </TableCell>
                         <TableCell align="right">
-                          <Tooltip title="Edit User">
-                            <IconButton size="small" onClick={() => handleOpenEditDialog(user)}>
-                              <Edit />
-                            </IconButton>
-                          </Tooltip>
+                          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
+                            <Tooltip title="Edit User">
+                              <IconButton size="small" onClick={() => handleOpenEditDialog(user)}>
+                                <Edit />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip
+                              title={
+                                currentUser?.id === user.id
+                                  ? 'You cannot delete your own account'
+                                  : 'Delete User'
+                              }
+                            >
+                              <span>
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  onClick={() => handleOpenDeleteDialog(user)}
+                                  disabled={currentUser?.id === user.id}
+                                >
+                                  <Delete />
+                                </IconButton>
+                              </span>
+                            </Tooltip>
+                          </Box>
                         </TableCell>
                       </TableRow>
                     );
@@ -521,6 +571,39 @@ const UsersPage: React.FC = () => {
             }
           >
             {updating ? 'Saving...' : 'Save Changes'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => !deleting && setDeleteDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <WarningAmber sx={{ color: colors.warning.main }} />
+          Delete User
+        </DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            This will permanently delete the user account.
+          </Alert>
+          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+            User
+            <Typography component="span" sx={{ fontWeight: 700, mx: 0.5 }}>
+              {userToDelete?.name || 'this user'}
+            </Typography>
+            ({userToDelete?.email || 'no-email'}) will lose access immediately.
+            This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2.5 }}>
+          <Button onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>
+            Cancel
+          </Button>
+          <Button variant="contained" color="error" onClick={handleDeleteUser} disabled={deleting}>
+            {deleting ? 'Deleting...' : 'Delete User'}
           </Button>
         </DialogActions>
       </Dialog>
