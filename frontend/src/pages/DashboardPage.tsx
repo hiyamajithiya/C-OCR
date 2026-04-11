@@ -211,11 +211,10 @@ const DashboardPage: React.FC = () => {
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
           <StatsCard
-            title="Processed"
-            value={loading ? '...' : stats.processed}
+            title="Processed / In Progress"
+            value={loading ? '...' : `${stats.processed} / ${stats.processing}`}
             icon={<CheckCircle sx={{ fontSize: 24 }} />}
             color="success"
-            subtitle={`${stats.processing} in progress`}
           />
         </Grid>
         <Grid item xs={12} sm={6} md={3}>
@@ -232,9 +231,9 @@ const DashboardPage: React.FC = () => {
       {/* Main Content Grid */}
       <Grid container spacing={3}>
         {/* Recent Documents */}
-        <Grid item xs={12} lg={8}>
-          <Card>
-            <CardContent sx={{ p: 0 }}>
+        <Grid item xs={12} lg={8} sx={{ display: 'flex' }}>
+          <Card sx={{ width: '100%', height: '100%' }}>
+            <CardContent sx={{ p: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
               <Box
                 sx={{
                   display: 'flex',
@@ -269,13 +268,13 @@ const DashboardPage: React.FC = () => {
               </Box>
 
               {loading ? (
-                <Box sx={{ p: 2 }}>
+                <Box sx={{ p: 2, flex: 1 }}>
                   {[1, 2, 3].map((i) => (
                     <Skeleton key={i} height={60} sx={{ mb: 1 }} />
                   ))}
                 </Box>
               ) : recentDocuments.length === 0 ? (
-                <Box sx={{ p: 6, textAlign: 'center' }}>
+                <Box sx={{ p: 6, textAlign: 'center', flex: 1 }}>
                   <Description sx={{ fontSize: 48, color: 'text.disabled', mb: 2 }} />
                   <Typography variant="h6" sx={{ color: 'text.secondary', mb: 1 }}>
                     No documents yet
@@ -288,7 +287,7 @@ const DashboardPage: React.FC = () => {
                   </Button>
                 </Box>
               ) : (
-                <TableContainer>
+                <TableContainer sx={{ flex: 1 }}>
                   <Table>
                     <TableHead>
                       <TableRow>
@@ -360,8 +359,8 @@ const DashboardPage: React.FC = () => {
         </Grid>
 
         {/* Activity Timeline */}
-        <Grid item xs={12} lg={4}>
-          <Card sx={{ height: '100%' }}>
+        <Grid item xs={12} lg={4} sx={{ display: 'flex' }}>
+          <Card sx={{ width: '100%', height: '100%' }}>
             <CardContent sx={{ p: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
               <Box
                 sx={{

@@ -16,7 +16,6 @@ import {
   TableHead,
   TableRow,
   Chip,
-  CircularProgress,
   alpha,
   Skeleton,
 } from '@mui/material';

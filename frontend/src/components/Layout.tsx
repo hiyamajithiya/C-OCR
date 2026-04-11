@@ -97,6 +97,14 @@ const Layout: React.FC = () => {
     navigate('/login');
   };
 
+  const handleNotificationsClick = () => {
+    if (hasRole(['admin'])) {
+      navigate('/audit-logs');
+      return;
+    }
+    navigate('/');
+  };
+
   const isActive = (path: string) => {
     if (path === '/') {
       return location.pathname === '/';
@@ -348,7 +356,7 @@ const Layout: React.FC = () => {
 
           {/* Notifications */}
           <Tooltip title="Notifications">
-            <IconButton sx={{ mr: 1 }}>
+            <IconButton sx={{ mr: 1 }} onClick={handleNotificationsClick}>
               <Badge badgeContent={0} color="error">
                 <Notifications />
               </Badge>
@@ -357,7 +365,7 @@ const Layout: React.FC = () => {
 
           {/* Settings */}
           <Tooltip title="Settings">
-            <IconButton sx={{ mr: 1 }}>
+            <IconButton sx={{ mr: 1 }} onClick={handleMenuOpen}>
               <Settings />
             </IconButton>
           </Tooltip>
