@@ -18,9 +18,40 @@ DEBUG = env.bool("DEBUG", default=False)
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1", "0.0.0.0"])
 
 # --- Database ---
-DATABASES = {
-    "default": env.db("DATABASE_URL", default="postgresql://postgres:postgres@localhost:5432/c_ocr"),
-}
+USE_SQLITE = env.bool("USE_SQLITE", default=False)
+if USE_SQLITE:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
+else:
+    # Prefer explicit DB_* settings when present so local credentials/ports are respected.
+    db_name = env("DB_NAME", default="")
+    db_user = env("DB_USER", default="")
+    db_password = env("DB_PASSWORD", default="")
+    db_host = env("DB_HOST", default="")
+    db_port = env("DB_PORT", default="")
+
+    if any([db_name, db_user, db_password, db_host, db_port]):
+        DATABASES = {
+            "default": {
+                "ENGINE": "django.db.backends.postgresql",
+                "NAME": db_name or "c_ocr",
+                "USER": db_user or "postgres",
+                "PASSWORD": db_password or "postgres",
+                "HOST": db_host or "localhost",
+                "PORT": db_port or "5432",
+            }
+        }
+    else:
+        DATABASES = {
+            "default": env.db(
+                "DATABASE_URL",
+                default="postgresql://postgres:postgres@localhost:5432/c_ocr",
+            ),
+        }
 
 # --- Installed Apps ---
 INSTALLED_APPS = [
