@@ -59,6 +59,9 @@ const UsersPage: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [openDialog, setOpenDialog] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [newUser, setNewUser] = useState({
@@ -92,6 +95,34 @@ const UsersPage: React.FC = () => {
       loadUsers();
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Failed to create user');
+    }
+  };
+
+  const handleOpenEditDialog = (user: User) => {
+    setError('');
+    setSelectedUser(user);
+    setEditDialogOpen(true);
+  };
+
+  const handleUpdateUser = async () => {
+    if (!selectedUser) return;
+
+    setUpdating(true);
+    setError('');
+    try {
+      await apiService.updateUser(selectedUser.id, {
+        name: selectedUser.name,
+        email: selectedUser.email,
+        role: selectedUser.role,
+        is_active: selectedUser.is_active,
+      });
+      setEditDialogOpen(false);
+      setSelectedUser(null);
+      await loadUsers();
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Failed to update user');
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -283,7 +314,7 @@ const UsersPage: React.FC = () => {
                         </TableCell>
                         <TableCell align="right">
                           <Tooltip title="Edit User">
-                            <IconButton size="small">
+                            <IconButton size="small" onClick={() => handleOpenEditDialog(user)}>
                               <Edit />
                             </IconButton>
                           </Tooltip>
@@ -395,6 +426,101 @@ const UsersPage: React.FC = () => {
             disabled={!newUser.name || !newUser.email || !newUser.password}
           >
             Add User
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={editDialogOpen}
+        onClose={() => !updating && setEditDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ fontWeight: 600 }}>Edit User</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 3 }}>
+            Update user profile and role permissions.
+          </Typography>
+          <TextField
+            fullWidth
+            label="Full Name"
+            value={selectedUser?.name || ''}
+            onChange={(e) =>
+              selectedUser && setSelectedUser({ ...selectedUser, name: e.target.value })
+            }
+            margin="normal"
+            required
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Person sx={{ color: 'text.secondary' }} />
+                </InputAdornment>
+              ),
+            }}
+          />
+          <TextField
+            fullWidth
+            label="Email"
+            type="email"
+            value={selectedUser?.email || ''}
+            onChange={(e) =>
+              selectedUser && setSelectedUser({ ...selectedUser, email: e.target.value })
+            }
+            margin="normal"
+            required
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Email sx={{ color: 'text.secondary' }} />
+                </InputAdornment>
+              ),
+            }}
+          />
+          <TextField
+            fullWidth
+            select
+            label="Role"
+            value={selectedUser?.role || 'operator'}
+            onChange={(e) =>
+              selectedUser && setSelectedUser({ ...selectedUser, role: e.target.value })
+            }
+            margin="normal"
+            required
+          >
+            <MenuItem value="operator">Operator</MenuItem>
+            <MenuItem value="reviewer">Reviewer</MenuItem>
+            <MenuItem value="admin">Admin</MenuItem>
+          </TextField>
+          <TextField
+            fullWidth
+            select
+            label="Status"
+            value={selectedUser?.is_active ? 'active' : 'inactive'}
+            onChange={(e) =>
+              selectedUser &&
+              setSelectedUser({ ...selectedUser, is_active: e.target.value === 'active' })
+            }
+            margin="normal"
+            required
+          >
+            <MenuItem value="active">Active</MenuItem>
+            <MenuItem value="inactive">Inactive</MenuItem>
+          </TextField>
+        </DialogContent>
+        <DialogActions sx={{ p: 2.5 }}>
+          <Button onClick={() => setEditDialogOpen(false)} disabled={updating}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleUpdateUser}
+            variant="contained"
+            disabled={
+              updating ||
+              !selectedUser?.name ||
+              !selectedUser?.email
+            }
+          >
+            {updating ? 'Saving...' : 'Save Changes'}
           </Button>
         </DialogActions>
       </Dialog>
