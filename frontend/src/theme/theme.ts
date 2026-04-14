@@ -266,6 +266,19 @@ const theme = createTheme({
           '& .MuiOutlinedInput-notchedOutline': {
             borderColor: alpha(colors.text.primary, 0.2),
           },
+          '& input:-webkit-autofill, & input:-webkit-autofill:hover, & input:-webkit-autofill:focus, & input:-webkit-autofill:active': {
+            WebkitTextFillColor: colors.text.primary,
+            caretColor: colors.text.primary,
+            WebkitBoxShadow: `0 0 0 1000px ${alpha(colors.background.default, 0.5)} inset`,
+            boxShadow: `0 0 0 1000px ${alpha(colors.background.default, 0.5)} inset`,
+            borderRadius: 'inherit',
+            transition: 'background-color 9999s ease-out 0s',
+          },
+          '& input:autofill': {
+            WebkitTextFillColor: colors.text.primary,
+            caretColor: colors.text.primary,
+            boxShadow: `0 0 0 1000px ${alpha(colors.background.default, 0.5)} inset`,
+          },
         },
       },
     },
