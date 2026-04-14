@@ -219,11 +219,6 @@ const TemplatesPage: React.FC = () => {
         };
       });
 
-      if (validFields.length === 0) {
-        setError('Please add at least one field name or display label');
-        return;
-      }
-
       // Create the template
       const created = await apiService.createTemplate({ ...newTemplate, doc_category: category });
 
@@ -675,9 +670,7 @@ const TemplatesPage: React.FC = () => {
           <Button
             onClick={handleCreateTemplate}
             variant="contained"
-            disabled={
-              !newTemplate.name || !newFields.some((f) => f.name.trim() || f.label.trim())
-            }
+            disabled={!newTemplate.name}
           >
             Create Template
           </Button>
