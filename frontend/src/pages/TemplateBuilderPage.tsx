@@ -142,6 +142,20 @@ const TemplateBuilderPage: React.FC = () => {
     }
   }, [selectedDocId, currentPage]);
 
+  // Keep pagination in sync when a document is preselected (e.g. from template signature)
+  useEffect(() => {
+    if (!selectedDocId) {
+      setTotalPages(1);
+      setCurrentPage(1);
+      return;
+    }
+
+    const selectedDoc = documents.find((d) => d.id === selectedDocId);
+    const pages = Math.max(1, Number(selectedDoc?.page_count || 1));
+    setTotalPages(pages);
+    setCurrentPage((prev) => Math.min(prev, pages));
+  }, [selectedDocId, documents]);
+
   // Redraw canvas when fields, zoom, or image changes
   useEffect(() => {
     drawCanvas();
