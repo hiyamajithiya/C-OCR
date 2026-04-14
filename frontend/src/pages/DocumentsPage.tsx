@@ -522,7 +522,7 @@ const DocumentsPage: React.FC = () => {
                 <MenuItem value="error">Error</MenuItem>
               </TextField>
               <Tooltip title="Refresh">
-                <IconButton onClick={loadAllDocuments}>
+                <IconButton onClick={() => void loadAllDocuments()}>
                   <Refresh />
                 </IconButton>
               </Tooltip>
