@@ -176,18 +176,39 @@ const TemplatesPage: React.FC = () => {
     setStatusDialogOpen(true);
   };
 
+  const toFieldIdentifier = (value: string) =>
+    value
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .replace(/_+/g, '_');
+
   const handleCreateTemplate = async () => {
     setError('');
     try {
       const category = newTemplate.doc_category.trim();
 
-      // Filter out empty field rows and validate
-      const validFields = newFields
-        .filter((f) => f.name.trim())
-        .map((f) => ({
+      // Keep rows where either field name or display label is provided.
+      const nonEmptyRows = newFields.filter((f) => f.name.trim() || f.label.trim());
+      const usedNames = new Set<string>();
+      const validFields = nonEmptyRows.map((f, index) => {
+        const rawName = f.name.trim();
+        const rawLabel = f.label.trim();
+
+        const baseName = toFieldIdentifier(rawName || rawLabel || `field_${index + 1}`);
+        let uniqueName = baseName || `field_${index + 1}`;
+        let suffix = 2;
+        while (usedNames.has(uniqueName)) {
+          uniqueName = `${baseName || `field_${index + 1}`}_${suffix}`;
+          suffix += 1;
+        }
+        usedNames.add(uniqueName);
+
+        return {
           id: `field_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-          name: f.name.trim(),
-          label: f.label.trim() || f.name.trim(),
+          name: uniqueName,
+          label: rawLabel || rawName.replace(/_/g, ' ') || `Field ${index + 1}`,
           type: f.type,
           page: 1,
           x: 0,
@@ -195,10 +216,11 @@ const TemplatesPage: React.FC = () => {
           width: 0,
           height: 0,
           required: false,
-        }));
+        };
+      });
 
       if (validFields.length === 0) {
-        setError('Please add at least one field to extract');
+        setError('Please add at least one field name or display label');
         return;
       }
 
@@ -608,13 +630,12 @@ const TemplatesPage: React.FC = () => {
                 <TextField
                   size="small"
                   label="Field Name"
-                  placeholder="invoice_number"
+                  placeholder="Optional: invoice_number"
                   value={field.name}
                   onChange={(e) =>
                     updateFieldRow(index, { name: e.target.value.replace(/\s+/g, '_').toLowerCase() })
                   }
                   sx={{ flex: 2 }}
-                  required
                 />
                 <TextField
                   size="small"
@@ -654,7 +675,9 @@ const TemplatesPage: React.FC = () => {
           <Button
             onClick={handleCreateTemplate}
             variant="contained"
-            disabled={!newTemplate.name || !newFields.some((f) => f.name.trim())}
+            disabled={
+              !newTemplate.name || !newFields.some((f) => f.name.trim() || f.label.trim())
+            }
           >
             Create Template
           </Button>
